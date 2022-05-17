@@ -76,7 +76,7 @@ async function getQueue() {
 			clearTimeout(timer);
 			reject(err);
 		  }
-		  core.info(`queue: ${JSON.parse(body)}`)
+		  core.info(`queue: ${body}`)
 		  resolve(JSON.parse(body));
 		})
 	  );
