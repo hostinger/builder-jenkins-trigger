@@ -39,7 +39,7 @@ async function requestJenkinsJob(jobName, params) {
   );
 }
 
-async function getLastBuildStatus(jobName, jobParams) {
+async function getLastBuildStatus(jobName) {
   const jenkinsEndpoint = core.getInput('url');
   const req = {
     method: 'get',
@@ -51,9 +51,11 @@ async function getLastBuildStatus(jobName, jobParams) {
   return new Promise((resolve, reject) =>
       request(req, (err, res, body) => {
         if (err) {
+		  core.info(`last build error: ${JSON.parse(err)}`)
           clearTimeout(timer);
           reject(err);
         }
+		core.info(`last job status: ${JSON.parse(body)}`)
         resolve(JSON.parse(body));
       })
     );
@@ -70,9 +72,11 @@ async function getQueue() {
 	return new Promise((resolve, reject) =>
 		request(req, (err, res, body) => {
 		  if (err) {
+			core.info(`queue error: ${JSON.parse(err)}`)
 			clearTimeout(timer);
 			reject(err);
 		  }
+		  core.info(`queue: ${JSON.parse(body)}`)
 		  resolve(JSON.parse(body));
 		})
 	  );
