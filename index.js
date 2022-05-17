@@ -5,6 +5,7 @@ const core = require('@actions/core');
 const API_TOKEN = Buffer.from(`${core.getInput('user_name')}:${core.getInput('api_token')}`).toString('base64');
 
 let timer = setTimeout(() => {
+  core.info("Job Timeout")
   core.setFailed("Job Timeout");
   core.error("Exception Error: Timed out");
   }, (Number(core.getInput('timeout')) * 1000));
@@ -31,6 +32,7 @@ async function requestJenkinsJob(jobName, params) {
       resolve();
     })
     .on("error", (err) => {
+      core.info("Failed to start job")
       core.setFailed(err);
       core.error(JSON.stringify(err));
       clearTimeout(timer);
@@ -126,14 +128,14 @@ async function waitJenkinsJob(jobName, timestamp, params) {
         checkQueue = false;
         let data = await getLastBuildStatus(jobName, params);
         if (data.timestamp < timestamp && isAllJobParamsPresent(data, params)) {
-        core.info(`>>> Job is not started yet... Wait 5 seconds more...`)
+          core.info(`>>> Job is not started yet... Wait 5 seconds more...`)
         } else if (data.result == "SUCCESS") {
-        core.info(`>>> Job "${data.fullDisplayName}" successfully completed!`);
-        break;
+          core.info(`>>> Job "${data.fullDisplayName}" successfully completed!`);
+          break;
         } else if (data.result == "FAILURE" || data.result == "ABORTED") {
-        throw new Error(`Failed job ${data.fullDisplayName}`);
+          throw new Error(`Failed job ${data.fullDisplayName}`);
         } else {
-        core.info(`>>> Job is running. Expected duration: ${data.estimatedDuration}`);
+          core.info(`>>> Job is running. Expected duration: ${data.estimatedDuration}`);
         }
     } else {
         core.info(`>>> Job is in queue, waiting to start "${jobName}" ...`);
@@ -159,6 +161,7 @@ async function main() {
       await waitJenkinsJob(jobName, startTs, params);
     }
   } catch (err) {
+    core.info(JSON.stringify(err))
     core.setFailed(err.message);
     core.error(err.message);
   } finally {
