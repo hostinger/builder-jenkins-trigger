@@ -39,7 +39,7 @@ async function requestJenkinsJob(jobName, params) {
   );
 }
 
-async function getJobStatus(jobName) {
+async function getLastBuildStatus(jobName, jobParams) {
   const jenkinsEndpoint = core.getInput('url');
   const req = {
     method: 'get',
@@ -58,20 +58,74 @@ async function getJobStatus(jobName) {
       })
     );
 }
-async function waitJenkinsJob(jobName, timestamp) {
+async function getQueue() {
+	const jenkinsEndpoint = core.getInput('url');
+	const req = {
+	  method: 'get',
+	  url: `${jenkinsEndpoint}/queue/api/json`,
+	  headers: {
+		'Authorization': `Basic ${API_TOKEN}`
+	  }
+	}
+	return new Promise((resolve, reject) =>
+		request(req, (err, res, body) => {
+		  if (err) {
+			clearTimeout(timer);
+			reject(err);
+		  }
+		  resolve(JSON.parse(body));
+		})
+	  );
+  }
+
+function isJobInQueue(queueData, jobName, params) {
+	const jobsInQueue = queueData.items.filter(e => e.task.name === jobName);
+	if(!jobsInQueue) {
+		return false;
+	}
+	const isExactJobInQueue = jobsInQueue.some(jobData => isAllJobParamsPresent(jobData, params));
+	return isExactJobInQueue;
+}
+
+function isAllJobParamsPresent(jobData, expectedParams) {
+	for (const [key, value] of Object.entries(expectedParams)) {
+		const isParamPresent = jobData.actions[0].parameters.some(e =>  
+				key.toUpperCase() === 'TOKEN' || (e.name.toUpperCase() === key.toUpperCase() && e.value.toUpperCase() === value.toUpperCase())
+			);
+
+		if (!isParamPresent) {
+			return false;
+		}
+	}
+	return true;
+}
+
+async function waitJenkinsJob(jobName, timestamp, params) {
   core.info(`>>> Waiting for "${jobName}" ...`);
+  await sleep(5);
+  let checkQueue = true;
+  let isJobWaitingInQueue = false
   while (true) {
-    let data = await getJobStatus(jobName);
-    if (data.timestamp < timestamp) {
-      core.info(`>>> Job is not started yet... Wait 5 seconds more...`)
-    } else if (data.result == "SUCCESS") {
-      core.info(`>>> Job "${data.fullDisplayName}" successfully completed!`);
-      break;
-    } else if (data.result == "FAILURE" || data.result == "ABORTED") {
-      throw new Error(`Failed job ${data.fullDisplayName}`);
-    } else {
-      core.info(`>>> Current Duration: ${data.duration}. Expected: ${data.estimatedDuration}`);
-    }
+	if (checkQueue) {
+		const queueData = await getQueue();
+		isJobWaitingInQueue = isJobInQueue(queueData, jobName, params);
+	}
+	if(!isJobWaitingInQueue) {
+		checkQueue = false;
+		let data = await getLastBuildStatus(jobName, params);
+		if (data.timestamp < timestamp && isAllJobParamsPresent(data, params)) {
+		core.info(`>>> Job is not started yet... Wait 5 seconds more...`)
+		} else if (data.result == "SUCCESS") {
+		core.info(`>>> Job "${data.fullDisplayName}" successfully completed!`);
+		break;
+		} else if (data.result == "FAILURE" || data.result == "ABORTED") {
+		throw new Error(`Failed job ${data.fullDisplayName}`);
+		} else {
+		core.info(`>>> Job is running. Expected duration: ${data.estimatedDuration}`);
+		}
+	} else {
+		core.info(`>>> Job is in queue, waiting to start "${jobName}" ...`);
+	}
     await sleep(5); // API call interval
   }
 }
@@ -90,7 +144,7 @@ async function main() {
 
     // Waiting for job completion
     if (core.getInput('wait') == 'true') {
-      await waitJenkinsJob(jobName, startTs);
+      await waitJenkinsJob(jobName, startTs, params);
     }
   } catch (err) {
     core.setFailed(err.message);
