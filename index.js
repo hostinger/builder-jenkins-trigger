@@ -58,6 +58,7 @@ async function getLastBuildStatus(jobName) {
                 const jsonBody = JSON.parse(body)
                 resolve(jsonBody);
             } catch (e) {
+                clearTimeout(timer);
                 reject(e);
             }
         })
@@ -82,6 +83,7 @@ async function getQueue() {
                 const jsonBody = JSON.parse(body)
                 resolve(jsonBody);
             } catch (e) {
+                clearTimeout(timer);
                 reject(e);
             }
         })
