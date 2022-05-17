@@ -40,68 +40,74 @@ async function requestJenkinsJob(jobName, params) {
 }
 
 async function getLastBuildStatus(jobName) {
-  const jenkinsEndpoint = core.getInput('url');
-  const req = {
-    method: 'get',
-    url: `${jenkinsEndpoint}/job/${jobName}/lastBuild/api/json`,
-    headers: {
-      'Authorization': `Basic ${API_TOKEN}`
-    }
-  }
-  return new Promise((resolve, reject) =>
-      request(req, (err, res, body) => {
-        if (err) {
-		  core.info(`last build error: ${JSON.parse(err)}`)
-          clearTimeout(timer);
-          reject(err);
+    const jenkinsEndpoint = core.getInput('url');
+    const req = {
+        method: 'get',
+        url: `${jenkinsEndpoint}/job/${jobName}/lastBuild/api/json`,
+        headers: {
+        'Authorization': `Basic ${API_TOKEN}`
         }
-		core.info(`last job status: ${JSON.parse(body)}`)
-        resolve(JSON.parse(body));
-      })
+    }
+    return new Promise((resolve, reject) =>
+        request(req, (err, res, body) => {
+            if (err) {
+            clearTimeout(timer);
+            reject(err);
+            }
+            try {
+                const jsonBody = JSON.parse(body)
+                resolve(jsonBody);
+            } catch (e) {
+                reject(e);
+            }
+        })
     );
 }
 async function getQueue() {
-	const jenkinsEndpoint = core.getInput('url');
-	const req = {
-	  method: 'get',
-	  url: `${jenkinsEndpoint}/queue/api/json`,
-	  headers: {
-		'Authorization': `Basic ${API_TOKEN}`
-	  }
-	}
-	return new Promise((resolve, reject) =>
-		request(req, (err, res, body) => {
-		  if (err) {
-			core.info(`queue error: ${JSON.parse(err)}`)
-			clearTimeout(timer);
-			reject(err);
-		  }
-		  core.info(`queue: ${body}`)
-		  resolve(JSON.parse(body));
-		})
-	  );
-  }
+    const jenkinsEndpoint = core.getInput('url');
+    const req = {
+        method: 'get',
+        url: `${jenkinsEndpoint}/queue/api/json`,
+        headers: {
+            'Authorization': `Basic ${API_TOKEN}`
+        }
+    }
+    return new Promise((resolve, reject) =>
+        request(req, (err, res, body) => {
+            if (err) {
+                clearTimeout(timer);
+                reject(err);
+            }
+            try {
+                const jsonBody = JSON.parse(body)
+                resolve(jsonBody);
+            } catch (e) {
+                reject(e);
+            }
+        })
+    );
+}
 
 function isJobInQueue(queueData, jobName, params) {
-	const jobsInQueue = queueData.items.filter(e => e.task.name === jobName);
-	if(!jobsInQueue) {
-		return false;
-	}
-	const isExactJobInQueue = jobsInQueue.some(jobData => isAllJobParamsPresent(jobData, params));
-	return isExactJobInQueue;
+    const jobsInQueue = queueData.items.filter(e => e.task.name === jobName);
+    if(!jobsInQueue) {
+        return false;
+    }
+    const isExactJobInQueue = jobsInQueue.some(jobData => isAllJobParamsPresent(jobData, params));
+    return isExactJobInQueue;
 }
 
 function isAllJobParamsPresent(jobData, expectedParams) {
-	for (const [key, value] of Object.entries(expectedParams)) {
-		const isParamPresent = jobData.actions[0].parameters.some(e =>  
-				key.toUpperCase() === 'TOKEN' || (e.name.toUpperCase() === key.toUpperCase() && e.value.toUpperCase() === value.toUpperCase())
-			);
+    for (const [key, value] of Object.entries(expectedParams)) {
+        const isParamPresent = jobData.actions[0].parameters.some(e =>
+                key.toUpperCase() === 'TOKEN' || (e.name.toUpperCase() === key.toUpperCase() && e.value.toUpperCase() === value.toUpperCase())
+            );
 
-		if (!isParamPresent) {
-			return false;
-		}
-	}
-	return true;
+        if (!isParamPresent) {
+            return false;
+        }
+    }
+    return true;
 }
 
 async function waitJenkinsJob(jobName, timestamp, params) {
@@ -110,26 +116,26 @@ async function waitJenkinsJob(jobName, timestamp, params) {
   let checkQueue = true;
   let isJobWaitingInQueue = false
   while (true) {
-	if (checkQueue) {
-		const queueData = await getQueue();
-		isJobWaitingInQueue = isJobInQueue(queueData, jobName, params);
-	}
-	if(!isJobWaitingInQueue) {
-		checkQueue = false;
-		let data = await getLastBuildStatus(jobName, params);
-		if (data.timestamp < timestamp && isAllJobParamsPresent(data, params)) {
-		core.info(`>>> Job is not started yet... Wait 5 seconds more...`)
-		} else if (data.result == "SUCCESS") {
-		core.info(`>>> Job "${data.fullDisplayName}" successfully completed!`);
-		break;
-		} else if (data.result == "FAILURE" || data.result == "ABORTED") {
-		throw new Error(`Failed job ${data.fullDisplayName}`);
-		} else {
-		core.info(`>>> Job is running. Expected duration: ${data.estimatedDuration}`);
-		}
-	} else {
-		core.info(`>>> Job is in queue, waiting to start "${jobName}" ...`);
-	}
+    if (checkQueue) {
+        const queueData = await getQueue();
+        isJobWaitingInQueue = isJobInQueue(queueData, jobName, params);
+    }
+    if(!isJobWaitingInQueue) {
+        checkQueue = false;
+        let data = await getLastBuildStatus(jobName, params);
+        if (data.timestamp < timestamp && isAllJobParamsPresent(data, params)) {
+        core.info(`>>> Job is not started yet... Wait 5 seconds more...`)
+        } else if (data.result == "SUCCESS") {
+        core.info(`>>> Job "${data.fullDisplayName}" successfully completed!`);
+        break;
+        } else if (data.result == "FAILURE" || data.result == "ABORTED") {
+        throw new Error(`Failed job ${data.fullDisplayName}`);
+        } else {
+        core.info(`>>> Job is running. Expected duration: ${data.estimatedDuration}`);
+        }
+    } else {
+        core.info(`>>> Job is in queue, waiting to start "${jobName}" ...`);
+    }
     await sleep(5); // API call interval
   }
 }
