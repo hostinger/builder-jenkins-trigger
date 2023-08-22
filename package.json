@@ -19,6 +19,9 @@
     "@actions/github": "2.1.1",
     "request": "^2.88.2"
   },
+  "overrides": {
+		"fsevents": "2.3.2"
+	},
   "devDependencies": {
     "@zeit/ncc": "0.22.1"
   }
