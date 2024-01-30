@@ -1,4 +1,5 @@
 const axios = require('axios');
+const qs = require('qs');
 const core = require('@actions/core');
 
 // create auth token for Jenkins API
@@ -21,9 +22,10 @@ async function requestJenkinsJob(jobName, params) {
   const req = {
     method: 'post',
     url: `${jenkinsEndpoint}/job/${jobName}/buildWithParameters`,
-    data: params,
+    data: qs.stringify(params),
     headers: {
-      'Authorization': `Basic ${API_TOKEN}`
+      'Authorization': `Basic ${API_TOKEN}`,
+      'Content-Type': 'application/x-www-form-urlencoded'
     }
   }
   try {
