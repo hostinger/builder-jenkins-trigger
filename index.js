@@ -1,4 +1,4 @@
-const request = require('request');
+const axios = require('axios');
 const core = require('@actions/core');
 
 // create auth token for Jenkins API
@@ -19,26 +19,22 @@ const sleep = (seconds) => {
 async function requestJenkinsJob(jobName, params) {
   const jenkinsEndpoint = core.getInput('url');
   const req = {
-    method: 'POST',
+    method: 'post',
     url: `${jenkinsEndpoint}/job/${jobName}/buildWithParameters`,
-    form: params,
+    data: params,
     headers: {
       'Authorization': `Basic ${API_TOKEN}`
     }
   }
-  await new Promise((resolve, reject) => request(req)
-    .on('response', (res) => {
-      core.info(`>>> Job is started!`);
-      resolve();
-    })
-    .on("error", (err) => {
-      core.info("Failed to start job")
-      core.setFailed(err);
-      core.error(JSON.stringify(err));
-      clearTimeout(timer);
-      reject();
-    })
-  );
+  try {
+    await axios(req);
+    core.info(`>>> Job is started!`);
+  } catch (err) {
+    core.info("Failed to start job")
+    core.setFailed(err);
+    core.error(JSON.stringify(err));
+    clearTimeout(timer);
+  }
 }
 
 async function getLastBuildStatus(jobName) {
@@ -50,22 +46,15 @@ async function getLastBuildStatus(jobName) {
         'Authorization': `Basic ${API_TOKEN}`
         }
     }
-    return new Promise((resolve, reject) =>
-        request(req, (err, res, body) => {
-            if (err) {
-            clearTimeout(timer);
-            reject(err);
-            }
-            try {
-                const jsonBody = JSON.parse(body)
-                resolve(jsonBody);
-            } catch (e) {
-                clearTimeout(timer);
-                reject(e);
-            }
-        })
-    );
+    try {
+        const response = await axios(req);
+        return response.data;
+    } catch (err) {
+        clearTimeout(timer);
+        throw err;
+    }
 }
+
 async function getQueue() {
     const jenkinsEndpoint = core.getInput('url');
     const req = {
@@ -75,21 +64,13 @@ async function getQueue() {
             'Authorization': `Basic ${API_TOKEN}`
         }
     }
-    return new Promise((resolve, reject) =>
-        request(req, (err, res, body) => {
-            if (err) {
-                clearTimeout(timer);
-                reject(err);
-            }
-            try {
-                const jsonBody = JSON.parse(body)
-                resolve(jsonBody);
-            } catch (e) {
-                clearTimeout(timer);
-                reject(e);
-            }
-        })
-    );
+    try {
+        const response = await axios(req);
+        return response.data;
+    } catch (err) {
+        clearTimeout(timer);
+        throw err;
+    }
 }
 
 function isJobInQueue(queueData, jobName, params) {
